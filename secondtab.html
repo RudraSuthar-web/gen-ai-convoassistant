@@ -134,8 +134,9 @@
         const chatEl = document.getElementById('chat');
         
         // API Configuration
-        const API_BASE_URL = 'https://100.20.92.101'; // Change this to your actual backend URL
-        
+       const API_BASE = "https://gen-ai-convoassistant.onrender.com";
+        fetch(`${API_BASE}/token`, { method: "POST", ... });
+ 
         // Event Listeners
         saveTokenBtn.addEventListener('click', handleSaveToken);
         startConversationBtn.addEventListener('click', handleStartConversation);
