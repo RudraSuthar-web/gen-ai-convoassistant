@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversation Helper</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 2rem;
+        }
+        .app-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+        .history-container {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+        }
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+        }
+        .assistant-message {
+            background-color: #e9f5ff;
+            border-left: 4px solid #0d6efd;
+        }
+        .user-message {
+            background-color: #f0f0f0;
+            border-left: 4px solid #6c757d;
+        }
+        .status {
+            height: 2rem;
+            font-style: italic;
+        }
+        .hidden {
+            display: none;
+        }
+        .chat-container {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="app-container">
+            <h1 class="text-center mb-4">Conversation Helper</h1>
+            
+            <div id="tokenSection">
+                <h3>API Configuration</h3>
+                <div class="mb-3">
+                    <label for="apiToken" class="form-label">Hugging Face API Token</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="apiToken" placeholder="Enter your API token">
+                        <button class="btn btn-primary" id="saveToken">Save Token</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="setupSection" class="hidden">
+                <h3>Conversation Setup</h3>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="personType" class="form-label">Conversation Partner</label>
+                        <input type="text" class="form-control" id="personType" placeholder="friend, boss, colleague, etc">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="topic" class="form-label">Topic</label>
+                        <input type="text" class="form-control" id="topic" placeholder="movies, work, sports, etc">
+                    </div>
+                </div>
+                <div class="d-grid">
+                    <button class="btn btn-success" id="startConversation">Start Conversation</button>
+                </div>
+            </div>
+            
+            <div id="conversationSection" class="hidden">
+                <h3>Conversation</h3>
+                
+                <div class="chat-container" id="chat"></div>
+                
+                <div class="input-group mt-3">
+                    <input type="text" class="form-control" id="userInput" placeholder="Type your message...">
+                    <button class="btn btn-primary" id="sendMessage">Send</button>
+                </div>
+                
+                <div class="d-flex justify-content-between mt-3">
+                    <button class="btn btn-outline-danger" id="resetConversation">Reset Conversation</button>
+                </div>
+                
+                <div class="status text-muted" id="status"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let sessionId = null;
+        
+        // DOM Elements
+        const tokenSection = document.getElementById('tokenSection');
+        const setupSection = document.getElementById('setupSection');
+        const conversationSection = document.getElementById('conversationSection');
+        
+        const apiTokenInput = document.getElementById('apiToken');
+        const saveTokenBtn = document.getElementById('saveToken');
+        
+        const personTypeInput = document.getElementById('personType');
+        const topicInput = document.getElementById('topic');
+        const startConversationBtn = document.getElementById('startConversation');
+        
+        const userInput = document.getElementById('userInput');
+        const sendMessageBtn = document.getElementById('sendMessage');
+        const resetConversationBtn = document.getElementById('resetConversation');
+        
+        const statusEl = document.getElementById('status');
+        const chatEl = document.getElementById('chat');
+        
+        // API Configuration
+        const API_BASE_URL = 'http://127.0.0.1:5000/api'; // Change this to your actual backend URL
+        
+        // Event Listeners
+        saveTokenBtn.addEventListener('click', handleSaveToken);
+        startConversationBtn.addEventListener('click', handleStartConversation);
+        sendMessageBtn.addEventListener('click', handleSendMessage);
+        resetConversationBtn.addEventListener('click', handleResetConversation);
+        
+        // Functions
+        async function handleSaveToken() {
+            const token = apiTokenInput.value.trim();
+            if (!token) {
+                updateStatus('API token cannot be empty', 'danger');
+                return;
+            }
+            
+            updateStatus('Validating token...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to validate token');
+                }
+                
+                sessionId = data.session_id;
+                updateStatus('Token saved successfully', 'success');
+                
+                // Show setup section
+                tokenSection.classList.add('hidden');
+                setupSection.classList.remove('hidden');
+                
+            } catch (error) {
+                updateStatus(error.message, 'danger');
+            }
+        }
+        
+        async function handleStartConversation() {
+            const personType = personTypeInput.value.trim();
+            const topic = topicInput.value.trim();
+            
+            if (!personType || !topic) {
+                updateStatus('Please fill in both conversation partner and topic', 'danger');
+                return;
+            }
+            
+            updateStatus('Starting conversation...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        session_id: sessionId,
+                        person_type: personType,
+                        topic: topic
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to start conversation');
+                }
+                
+                // Show conversation section
+                setupSection.classList.add('hidden');
+                conversationSection.classList.remove('hidden');
+                
+                // Clear chat
+                chatEl.innerHTML = '';
+                    
+                    // Add initial message from assistant
+                    addMessageToChat('assistant', data.suggestion);
+                    
+                } catch (error) {
+                    updateStatus(error.message, 'danger');
+                }
+            }
+            
+            async function handleSendMessage() {
+                const message = userInput.value.trim();
+                if (!message) {
+                    return;
+                }
+                
+                addMessageToChat('user', message);
+                userInput.value = '';
+                
+                updateStatus('Generating response...', 'info');
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/next`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            reply: message
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to get response');
+                    }
+                    
+                    addMessageToChat('assistant', data.suggestion);
+                    updateStatus('Ready', 'success');
+                    
+                } catch (error) {
+                    updateStatus(error.message, 'danger');
+                }
+            }
+            
+            async function handleResetConversation() {
+                if (!confirm('Are you sure you want to reset the conversation?')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/reset`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ session_id: sessionId })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to reset conversation');
+                    }
+                    
+                    // Clear UI
+                    chatEl.innerHTML = '';
+                    
+                    // Go back to setup
+                    conversationSection.classList.add('hidden');
+                    setupSection.classList.remove('hidden');
+                    
+                    updateStatus('Conversation reset', 'info');
+                    
+                } catch (error) {
+                    updateStatus(error.message, 'danger');
+                }
+            }
+            
+            function addMessageToChat(role, message) {
+                const messageEl = document.createElement('div');
+                messageEl.className = `message ${role}-message`;
+                
+                const roleLabel = document.createElement('div');
+                roleLabel.className = 'fw-bold';
+                roleLabel.textContent = role === 'assistant' ? "Assistant's Suggestions:" : 'Their Reply:';
+                
+                const contentEl = document.createElement('div');
+                contentEl.textContent = message;
+                
+                messageEl.appendChild(roleLabel);
+                messageEl.appendChild(contentEl);
+                
+                chatEl.appendChild(messageEl);
+                
+                // Scroll to bottom
+                chatEl.scrollTop = chatEl.scrollHeight;
+            }
+            
+            function updateStatus(message, type = 'info') {
+                statusEl.textContent = message;
+                
+                // Clear previous classes
+                statusEl.className = 'status';
+                
+                // Add text color based on type
+                switch (type) {
+                    case 'success':
+                        statusEl.classList.add('text-success');
+                        break;
+                    case 'danger':
+                        statusEl.classList.add('text-danger');
+                        break;
+                    case 'warning':
+                        statusEl.classList.add('text-warning');
+                        break;
+                    case 'info':
+                    default:
+                        statusEl.classList.add('text-info');
+                }
+            }
+        </script>
+    </body>
+    </html>
