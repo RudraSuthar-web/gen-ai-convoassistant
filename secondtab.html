@@ -18,8 +18,8 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             padding: 2rem;
         }
-        .history-container {
-            max-height: 300px;
+        .chat-container {
+            max-height: 400px;
             overflow-y: auto;
             margin-top: 1rem;
             border: 1px solid #dee2e6;
@@ -46,15 +46,6 @@
         }
         .hidden {
             display: none;
-        }
-        .chat-container {
-            max-height: 400px;
-            overflow-y: auto;
-            margin-top: 1rem;
-            border: 1px solid #dee2e6;
-            border-radius: 0.25rem;
-            padding: 1rem;
-            background-color: #f8f9fa;
         }
     </style>
 </head>
@@ -93,25 +84,21 @@
             
             <div id="conversationSection" class="hidden">
                 <h3>Conversation</h3>
-                
                 <div class="chat-container" id="chat"></div>
-                
                 <div class="input-group mt-3">
                     <input type="text" class="form-control" id="userInput" placeholder="Type your message...">
                     <button class="btn btn-primary" id="sendMessage">Send</button>
                 </div>
-                
                 <div class="d-flex justify-content-between mt-3">
-                    <button class="btn btn-outline-danger" id="resetConversation">Reset Conversation</button>
+                    <button class="btn btn-outline-danger" id="resetConversation">Reset</button>
                 </div>
-                
                 <div class="status text-muted" id="status"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // Global variables
+        const API_BASE = "https://gen-ai-convoassistant.onrender.com";
         let sessionId = null;
         
         // DOM Elements
@@ -121,7 +108,6 @@
         
         const apiTokenInput = document.getElementById('apiToken');
         const saveTokenBtn = document.getElementById('saveToken');
-        
         const personTypeInput = document.getElementById('personType');
         const topicInput = document.getElementById('topic');
         const startConversationBtn = document.getElementById('startConversation');
@@ -132,212 +118,93 @@
         
         const statusEl = document.getElementById('status');
         const chatEl = document.getElementById('chat');
-        
-        // API Configuration
-       const API_BASE = "https://gen-ai-convoassistant.onrender.com";
-        fetch(`${API_BASE}/token`, { method: "POST", ... });
- 
-        // Event Listeners
-        saveTokenBtn.addEventListener('click', handleSaveToken);
-        startConversationBtn.addEventListener('click', handleStartConversation);
-        sendMessageBtn.addEventListener('click', handleSendMessage);
-        resetConversationBtn.addEventListener('click', handleResetConversation);
-        
-        // Functions
-        async function handleSaveToken() {
+
+        saveTokenBtn.addEventListener('click', async () => {
             const token = apiTokenInput.value.trim();
-            if (!token) {
-                updateStatus('API token cannot be empty', 'danger');
-                return;
-            }
-            
+            if (!token) return updateStatus('API token cannot be empty', 'danger');
+
             updateStatus('Validating token...', 'info');
-            
+
             try {
-                const response = await fetch(`${API_BASE_URL}/token`, {
+                const response = await fetch(`${API_BASE}/token`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token })
                 });
-                
+
                 const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to validate token');
-                }
-                
+                if (!response.ok) throw new Error(data.error || 'Failed to validate token');
+
                 sessionId = data.session_id;
                 updateStatus('Token saved successfully', 'success');
-                
-                // Show setup section
                 tokenSection.classList.add('hidden');
                 setupSection.classList.remove('hidden');
-                
             } catch (error) {
                 updateStatus(error.message, 'danger');
             }
-        }
-        
-        async function handleStartConversation() {
+        });
+
+        startConversationBtn.addEventListener('click', async () => {
             const personType = personTypeInput.value.trim();
             const topic = topicInput.value.trim();
-            
-            if (!personType || !topic) {
-                updateStatus('Please fill in both conversation partner and topic', 'danger');
-                return;
-            }
-            
+            if (!personType || !topic) return updateStatus('Fill in both fields', 'danger');
+
             updateStatus('Starting conversation...', 'info');
-            
+
             try {
-                const response = await fetch(`${API_BASE_URL}/start`, {
+                const response = await fetch(`${API_BASE}/start`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ 
-                        session_id: sessionId,
-                        person_type: personType,
-                        topic: topic
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId, person_type: personType, topic: topic })
                 });
-                
+
                 const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to start conversation');
-                }
-                
-                // Show conversation section
+                if (!response.ok) throw new Error(data.error || 'Failed to start conversation');
+
                 setupSection.classList.add('hidden');
                 conversationSection.classList.remove('hidden');
-                
-                // Clear chat
                 chatEl.innerHTML = '';
-                    
-                    // Add initial message from assistant
-                    addMessageToChat('assistant', data.suggestion);
-                    
-                } catch (error) {
-                    updateStatus(error.message, 'danger');
-                }
+                addMessageToChat('assistant', data.suggestion);
+            } catch (error) {
+                updateStatus(error.message, 'danger');
             }
+        });
+
+        sendMessageBtn.addEventListener('click', async () => {
+            const message = userInput.value.trim();
+            if (!message) return;
             
-            async function handleSendMessage() {
-                const message = userInput.value.trim();
-                if (!message) {
-                    return;
-                }
-                
-                addMessageToChat('user', message);
-                userInput.value = '';
-                
-                updateStatus('Generating response...', 'info');
-                
-                try {
-                    const response = await fetch(`${API_BASE_URL}/next`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            session_id: sessionId,
-                            reply: message
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (!response.ok) {
-                        throw new Error(data.error || 'Failed to get response');
-                    }
-                    
-                    addMessageToChat('assistant', data.suggestion);
-                    updateStatus('Ready', 'success');
-                    
-                } catch (error) {
-                    updateStatus(error.message, 'danger');
-                }
+            addMessageToChat('user', message);
+            userInput.value = '';
+            updateStatus('Generating response...', 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/next`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId, reply: message })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to get response');
+
+                addMessageToChat('assistant', data.suggestion);
+                updateStatus('Ready', 'success');
+            } catch (error) {
+                updateStatus(error.message, 'danger');
             }
-            
-            async function handleResetConversation() {
-                if (!confirm('Are you sure you want to reset the conversation?')) {
-                    return;
-                }
-                
-                try {
-                    const response = await fetch(`${API_BASE_URL}/reset`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ session_id: sessionId })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (!response.ok) {
-                        throw new Error(data.error || 'Failed to reset conversation');
-                    }
-                    
-                    // Clear UI
-                    chatEl.innerHTML = '';
-                    
-                    // Go back to setup
-                    conversationSection.classList.add('hidden');
-                    setupSection.classList.remove('hidden');
-                    
-                    updateStatus('Conversation reset', 'info');
-                    
-                } catch (error) {
-                    updateStatus(error.message, 'danger');
-                }
-            }
-            
-            function addMessageToChat(role, message) {
-                const messageEl = document.createElement('div');
-                messageEl.className = `message ${role}-message`;
-                
-                const roleLabel = document.createElement('div');
-                roleLabel.className = 'fw-bold';
-                roleLabel.textContent = role === 'assistant' ? "Assistant's Suggestions:" : 'Their Reply:';
-                
-                const contentEl = document.createElement('div');
-                contentEl.textContent = message;
-                
-                messageEl.appendChild(roleLabel);
-                messageEl.appendChild(contentEl);
-                
-                chatEl.appendChild(messageEl);
-                
-                // Scroll to bottom
-                chatEl.scrollTop = chatEl.scrollHeight;
-            }
-            
-            function updateStatus(message, type = 'info') {
-                statusEl.textContent = message;
-                
-                // Clear previous classes
-                statusEl.className = 'status';
-                
-                // Add text color based on type
-                switch (type) {
-                    case 'success':
-                        statusEl.classList.add('text-success');
-                        break;
-                    case 'danger':
-                        statusEl.classList.add('text-danger');
-                        break;
-                    case 'warning':
-                        statusEl.classList.add('text-warning');
-                        break;
-                    case 'info':
-                    default:
-                        statusEl.classList.add('text-info');
-                }
-            }
-        </script>
-    </body>
-    </html>
+        });
+
+        function addMessageToChat(role, message) {
+            const msg = `<div class="message ${role}-message"><strong>${role === 'assistant' ? 'Assistant' : 'You'}:</strong> ${message}</div>`;
+            chatEl.innerHTML += msg;
+            chatEl.scrollTop = chatEl.scrollHeight;
+        }
+
+        function updateStatus(msg, type) {
+            statusEl.textContent = msg;
+            statusEl.className = `status text-${type}`;
+        }
+    </script>
+</body>
+</html>
