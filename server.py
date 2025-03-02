@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask, request, jsonify
 import requests
 import time
@@ -9,10 +8,10 @@ from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 
-# ✅ Allow only your frontend's domain (for production, remove "*" and allow specific domains)
+# ✅ Allow only frontend domain; adjust as needed
 CORS(app, resources={r"/*": {"origins": "https://gen-ai-convoassistant.vercel.app"}})
 
-# ✅ Rate limiter to prevent API abuse
+# ✅ Rate limiter to prevent abuse
 limiter = Limiter(app=app, key_func=get_remote_address)
 app.config['RATELIMIT_HEADERS_ENABLED'] = True
 
@@ -24,16 +23,20 @@ class Config:
     DEFAULT_TOP_P = 0.9
     MAX_RETRIES = 3
 
-# ✅ In-memory store (for testing; use DB in production)
+# ✅ In-memory store (use a database in production)
 conversations = {}
 
-@app.route('/api/token', methods=['POST'])
+@app.route('/api/token', methods=['POST', 'OPTIONS'])
+@app.route('/token', methods=['POST', 'OPTIONS'])  # ✅ Alias for /token
 def set_token():
     """ Store and validate the API token """
+    if request.method == 'OPTIONS':
+        return jsonify({"message": "CORS preflight passed"}), 200
+
     data = request.json
     if not data or 'token' not in data:
         return jsonify({"error": "API token is required"}), 400
-    
+
     token = data['token']
 
     try:
@@ -43,10 +46,10 @@ def set_token():
 
         if response.status_code in [401, 403]:
             return jsonify({"error": "Invalid Hugging Face API token"}), 401
-        
+
         session_id = os.urandom(16).hex()
         conversations[session_id] = {"token": token, "history": []}
-        
+
         return jsonify({"success": True, "session_id": session_id})
     except Exception as e:
         return jsonify({"error": f"Error validating token: {str(e)}"}), 500
@@ -57,7 +60,7 @@ def start_conversation():
     data = request.json
     if not data or 'session_id' not in data or 'person_type' not in data or 'topic' not in data:
         return jsonify({"error": "Session ID, person type, and topic are required"}), 400
-    
+
     session_id = data['session_id']
     if session_id not in conversations:
         return jsonify({"error": "Invalid or expired session"}), 401
@@ -65,7 +68,6 @@ def start_conversation():
     person_type = data['person_type']
     topic = data['topic']
 
-    # Reset conversation history
     conversations[session_id].update({"history": [], "person_type": person_type, "topic": topic})
 
     prompt = f"Suggest something to say or a question to ask when starting a conversation with a {person_type} about {topic}."
@@ -78,7 +80,7 @@ def start_conversation():
         return jsonify({"error": f"Error generating suggestion: {str(e)}"}), 500
 
 @app.route('/api/next', methods=['POST'])
-@limiter.limit("60/minute")  # ✅ Prevent abuse (60 requests per minute)
+@limiter.limit("60/minute")  # ✅ Prevent abuse
 def next_suggestion():
     """ Generate next suggestion based on user reply """
     data = request.json
@@ -145,7 +147,7 @@ def generate_suggestion(prompt, token):
         try:
             response = requests.post(Config.API_URL, headers=headers, json=payload, timeout=30)
 
-            if response.status_code == 429:  # Handle rate limiting
+            if response.status_code == 429:
                 time.sleep(2 ** attempt)
                 continue
 
