@@ -98,29 +98,11 @@
     </div>
 
     <script>
-        const API_BASE = "https://gen-ai-convoassistant.onrender.com";
+        const API_BASE = "https://gen-ai-convoassistant.onrender.com/api";
         let sessionId = null;
         
-        // DOM Elements
-        const tokenSection = document.getElementById('tokenSection');
-        const setupSection = document.getElementById('setupSection');
-        const conversationSection = document.getElementById('conversationSection');
-        
-        const apiTokenInput = document.getElementById('apiToken');
-        const saveTokenBtn = document.getElementById('saveToken');
-        const personTypeInput = document.getElementById('personType');
-        const topicInput = document.getElementById('topic');
-        const startConversationBtn = document.getElementById('startConversation');
-        
-        const userInput = document.getElementById('userInput');
-        const sendMessageBtn = document.getElementById('sendMessage');
-        const resetConversationBtn = document.getElementById('resetConversation');
-        
-        const statusEl = document.getElementById('status');
-        const chatEl = document.getElementById('chat');
-
-        saveTokenBtn.addEventListener('click', async () => {
-            const token = apiTokenInput.value.trim();
+        document.getElementById('saveToken').addEventListener('click', async () => {
+            const token = document.getElementById('apiToken').value.trim();
             if (!token) return updateStatus('API token cannot be empty', 'danger');
 
             updateStatus('Validating token...', 'info');
@@ -137,16 +119,16 @@
 
                 sessionId = data.session_id;
                 updateStatus('Token saved successfully', 'success');
-                tokenSection.classList.add('hidden');
-                setupSection.classList.remove('hidden');
+                document.getElementById('tokenSection').classList.add('hidden');
+                document.getElementById('setupSection').classList.remove('hidden');
             } catch (error) {
                 updateStatus(error.message, 'danger');
             }
         });
 
-        startConversationBtn.addEventListener('click', async () => {
-            const personType = personTypeInput.value.trim();
-            const topic = topicInput.value.trim();
+        document.getElementById('startConversation').addEventListener('click', async () => {
+            const personType = document.getElementById('personType').value.trim();
+            const topic = document.getElementById('topic').value.trim();
             if (!personType || !topic) return updateStatus('Fill in both fields', 'danger');
 
             updateStatus('Starting conversation...', 'info');
@@ -161,47 +143,24 @@
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || 'Failed to start conversation');
 
-                setupSection.classList.add('hidden');
-                conversationSection.classList.remove('hidden');
-                chatEl.innerHTML = '';
+                document.getElementById('setupSection').classList.add('hidden');
+                document.getElementById('conversationSection').classList.remove('hidden');
+                document.getElementById('chat').innerHTML = '';
                 addMessageToChat('assistant', data.suggestion);
-            } catch (error) {
-                updateStatus(error.message, 'danger');
-            }
-        });
-
-        sendMessageBtn.addEventListener('click', async () => {
-            const message = userInput.value.trim();
-            if (!message) return;
-            
-            addMessageToChat('user', message);
-            userInput.value = '';
-            updateStatus('Generating response...', 'info');
-
-            try {
-                const response = await fetch(`${API_BASE}/next`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: sessionId, reply: message })
-                });
-
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Failed to get response');
-
-                addMessageToChat('assistant', data.suggestion);
-                updateStatus('Ready', 'success');
             } catch (error) {
                 updateStatus(error.message, 'danger');
             }
         });
 
         function addMessageToChat(role, message) {
+            const chatEl = document.getElementById('chat');
             const msg = `<div class="message ${role}-message"><strong>${role === 'assistant' ? 'Assistant' : 'You'}:</strong> ${message}</div>`;
             chatEl.innerHTML += msg;
             chatEl.scrollTop = chatEl.scrollHeight;
         }
 
         function updateStatus(msg, type) {
+            const statusEl = document.getElementById('status');
             statusEl.textContent = msg;
             statusEl.className = `status text-${type}`;
         }
