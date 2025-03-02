@@ -108,7 +108,7 @@ limiter = Limiter(app=app, key_func=lambda: request.headers.get('X-Forwarded-For
 app.config['RATELIMIT_HEADERS_ENABLED'] = True
 
 @app.route('/api/next', methods=['POST'])
-@limiter.limit("10/minute")  # Prevent abuse
+@limiter.limit("60/minute")  # Prevent abuse
 
 def next_suggestion():
     data = request.json
